@@ -20,6 +20,7 @@ def check_maybe_number(string, page_width):
         string["CONTENT"]
         .replace("I27.)", "1227.")
         .replace("I2a7.", "1227.")
+        .replace("Im7.", "1227.")
     )
 
     # check if the line is on the left or right
@@ -120,15 +121,14 @@ def process_zip_file(file, first_page, last_page):
                             #     next_content = tls[idx + 1].find_next('String')["CONTENT"]
                             #     is_number = re.search(r"\d{4}\.[])]?", next_content)
                             # if is_number:
-                            #     try:
-                            #         is_number = int(is_maybe_number.group())
-                            #     except:
-                            #         pass
-
+                            # try:
+                            #     is_number = int(is_maybe_number.group())
+                            # except:
+                            #     pass
                             # if it is a number and it is centered, then it is a regesto number
                             # save the lines accumulated till now as the previous regesto
                             regesta.append((last_number, lines))
-                            last_number = is_number if isinstance(is_number, int) else last_number + 1
+                            last_number = last_number + 1
                             lines = {"left": [], "right": [], "all": []}
 
                         else:
