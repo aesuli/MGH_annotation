@@ -1,5 +1,6 @@
 conda_venv/
 .vscode/
+raw_data/
 
 
 # Byte-compiled / optimized / DLL files
