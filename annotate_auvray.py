@@ -4,6 +4,7 @@ import os
 import re
 import zipfile
 from statistics import mean
+from pathlib import Path
 
 from bs4 import BeautifulSoup
 
@@ -13,10 +14,26 @@ mean_line_width = 0
 MAX_FOOTER_LINES = 15
 SKIPPED_PAGES = [13]
 
+french_months = [
+"janvier",
+"février",
+"mars",
+"avril",
+"mai",
+"juin",
+"juillet",
+"août",
+"septembre",
+"octobre",
+"novembre",
+"décembre",
+]
+
 def check_maybe_number(string, page_width):
     hpos = int(string['HPOS'])
     vpos = int(string['VPOS'])
     width = int(string['WIDTH'])
+    # fix many ocr mistakes, some make sense some are just random
     content = (
         string["CONTENT"].strip()
         .replace("I27.)", "1227.")
@@ -54,27 +71,25 @@ def check_maybe_number(string, page_width):
         .replace("f23t.'", "1231.")
         .replace("1231f.", "1232.")
         .replace("1233. —", "1232.")
-        .replace("12337).", "1232.")
+        .replace("12337).", "1233.")
         .replace("nx7.", "1227.")
     )
+
+    # remove trailing dashes
     if "122" in content:
         content = re.sub(r"—$", "", content).strip()
 
     # check if the line is on the left or right
-    line_type = "left" if hpos < page_width // 2 else "right"
+    line_type = "left" if hpos < (page_width // 2 - 300) else "right"
 
-    # determine if it could be a regesto number (remove periods)
+    # determine if it could be a regesto header
     is_maybe_number = any([
-        # re.match(r'\d+', content),
-        re.search(r'1\d{3}\.[])]*$', content),
-        re.search(r'1\d{3} f\.[])]*$', content),
-        re.search(r'1227$', content),
-        # 500 < width < 1000,
+        re.search(r"1\d{3}\.[])]*$", content),
+        re.search(r"1\d{3} f\.[])]*$", content),
+        re.search(r"1227$", content),
+        re.search(r"^\d{4}", content),
+        # (1900 < int(width) < 2000) # and "12" in content,
     ])
-
-    if is_maybe_number:
-        if re.match(r"I{1,3}\.", content):
-            is_maybe_number = False
 
 
     return {
@@ -85,6 +100,37 @@ def check_maybe_number(string, page_width):
         "line_type": line_type,
         "is_maybe_number": is_maybe_number,
     }
+
+def clean_bottom_lines(_lines):
+    page_ids = [idx for i in _lines if isinstance(i, str)]
+    page_n = None
+    if len(page_ids) > 0:
+        page_n = _lines.pop(page_ids[0])[5:]
+    # when we reach the end of a page we remove any eventual footnote
+    idx = len(_lines) - 1
+    remove = -1
+    while idx >= 0:
+        content = _lines[idx]['CONTENT']
+        width = _lines[idx]['WIDTH']
+        hpos = _lines[idx]['HPOS']
+
+        if content[:5].count(')') > 0:
+            # footnotes likely have a ) at the very beginning
+            remove = idx
+
+        if content.startswith('"') or content.startswith('9') or content.startswith('REG.'):
+            # other chars footnotes likely start with
+            remove = idx
+
+        idx -= 1
+        if len(_lines) - idx > MAX_FOOTER_LINES:
+            # do not go too much up in the page
+            break
+
+    if remove >= 0:
+        _lines = _lines[:remove]
+
+    return _lines
 
 def process_zip_file(file, first_page, last_page):
     top_margin = 300
@@ -100,7 +146,7 @@ def process_zip_file(file, first_page, last_page):
                 continue
             else:
                 page_number = int(f.split("Page")[1].split(".")[0])
-                print(f"PAGE N. {page_number}")
+                # print(f"PAGE N. {page_number}")
                 if page_number in SKIPPED_PAGES:
                     continue
                 starts = {"left": [], "right": []}
@@ -115,14 +161,14 @@ def process_zip_file(file, first_page, last_page):
                         string = tl.find_next("String")
                         hpos = int(string['HPOS'])
                         width = int(string['WIDTH'])
-                        if width > 1000:
+                        if width > 1500:
                             line_type = "left" if hpos < (page_width // 2 - 300) else "right"
                             starts[line_type].append(hpos)
                             widths[line_type].append(width)
                             ends[line_type].append(hpos + width)
 
-                    # if len(starts["left"]) < 3 or len(starts["right"]) < 3:
-                    #     continue
+                    if len(starts["left"]) < 3 or len(starts["right"]) < 3:
+                        continue
 
                     line_width = dict()
                     page_center = dict()
@@ -134,6 +180,7 @@ def process_zip_file(file, first_page, last_page):
                         page_centers[line_type].append(page_center[line_type])
                         line_widths[line_type].append(line_width[line_type])
 
+                    is_first_right = False
                     for idx, tl in enumerate(tls):
 
                         # segment info
@@ -145,13 +192,9 @@ def process_zip_file(file, first_page, last_page):
                         content = out["content"]
                         line_type = out["line_type"]
                         is_maybe_number = out["is_maybe_number"]
-
-                        # if width < line_width[line_type] / 2:
-                        #     # remove if it is too on the right and short
-                        #     continue
-                        # elif width < line_width[line_type] / 2:
-                        #     # remove if it is too on the left and short
-                        #     continue
+                        if not is_first_right and line_type == "right":
+                            is_first_right = True
+                            lines["left"] = clean_bottom_lines(lines["left"])
 
                         if not is_maybe_number and width < line_width[line_type] / 2:
                             # remove if it is too short
@@ -161,11 +204,16 @@ def process_zip_file(file, first_page, last_page):
                             continue
 
                         elif is_maybe_number:
+                            if idx == len(tls) - 1:
+                                # l'ultima linea è improbabile che sia l'inizio di un regesto
+                                continue
                             next_string = tls[idx + 1].find_next('String')
                             next_content = next_string["CONTENT"]
+                            # prevent splitting if it somehow would split at the end of
+                            # regesto and before testo esteso
                             if any([
                                 "«" in next_content[:6],
-                                re.match("I{1,3}\.", next_content),
+                                re.match(r"I{1,3}\.", next_content),
                                 re.match(r"IV\.", next_content),
                                 re.match(r"V\.", next_content),
                             ]):
@@ -180,47 +228,7 @@ def process_zip_file(file, first_page, last_page):
                             lines[line_type].append(string)
                             lines["all"].append(string)
 
-                    for line_type in ["left", "right", "all"]:
-                        _lines = lines[line_type]
-                        page_ids = [idx for i in _lines if isinstance(i, str)]
-                        page_n = None
-                        if len(page_ids) > 0:
-                            page_n = _lines.pop(page_ids[0])[5:]
-                        # when we reach the end of a page we remove any eventual footnote
-                        idx = len(_lines) - 1
-                        remove = -1
-                        while idx >= 0:
-                            content = _lines[idx]['CONTENT']
-                            width = _lines[idx]['WIDTH']
-                            hpos = _lines[idx]['HPOS']
-
-                            if content[:5].count(')') > 0:
-                                # footnotes likely have a ) at the very beginning
-                                remove = idx
-
-                            if content.startswith('"') or content.startswith('9') or content.startswith('REG.'):
-                                # other chars footnotes likely start with
-                                remove = idx
-
-                            idx -= 1
-                            if len(_lines) - idx > MAX_FOOTER_LINES:
-                                # do not go too much up in the page
-                                break
-                        if remove >= 0:
-                            _lines = _lines[:remove]
-                            # new_page_number = f'PAGE {page_number}'
-                            # if page_n is not None:
-                            #     new_page_number += ' ' + page_n
-                            # _lines.append(new_page_number)
-                            # lines["all"].append(new_page_number)
-
-                    # idx_to_pop = []
-                    # for idx, line in enumerate(lines["all"]):
-                    #     if line not in lines["left"] and line not in lines["right"]:
-                    #         idx_to_pop.append(idx)
-
-                    # for idx in idx_to_pop[::-1]:
-                    #     lines["all"].pop(idx)
+                    lines["right"] = clean_bottom_lines(lines["right"])
 
 
             if page_number >= last_page:
@@ -229,8 +237,12 @@ def process_zip_file(file, first_page, last_page):
 
     return regesta
 
-def split_in_test_and_regesto(tls):
+def split_testo_and_regesto(tls):
     split_idx = len(tls)
+    for idx in range(1, len(tls)):
+        if tls[idx]["CONTENT"].startswith("«"):
+            split_idx = idx
+            return tls[:split_idx], tls[split_idx:]
     for idx in range(1, len(tls)):
         c_content = tls[idx]["CONTENT"]
         n_content = tls[idx + 1]["CONTENT"] if idx < len(tls) - 1 else None
@@ -240,8 +252,10 @@ def split_in_test_and_regesto(tls):
             if not c_content.startswith("«.,"): # per un regesto specifico
                 split_idx = idx
                 break
-        if len(all_fs) >= 1:
+        if len(all_fs) > 1:
             split_idx = idx + 1
+            break
+        if len(all_fs) == 1:
             if n_content is not None and ")" in n_content:
                 split_idx = idx + 2
             break
@@ -254,11 +268,55 @@ def split_in_test_and_regesto(tls):
                 break
     return tls[:split_idx], tls[split_idx:]
 
+def postprocess_line(text):
+    # remove weird characters
+    text = (
+        text
+        .replace("«", "")
+        .replace("»", "")
+        .replace("...", "")
+        .replace("¬", " ")
+        .replace("\u2014", " ")
+        .strip()
+    )
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+def split_regesto_and_apparato(regesto_dict):
+    apparato_idx = None
+    is_apparato = False
+    apparato = []
+    is_app_line = None
+    for idx in range(len(regesto_dict["regesto"])):
+        current_line = regesto_dict["regesto"][idx].lower()
+        if is_apparato:
+            apparato.append(regesto_dict["regesto"][idx])
+            continue
+        if not is_app_line:
+            is_app_line = re.search(r"[\(I\^]re[gcqo](est)?\.|\(Anchiv.", current_line, re.IGNORECASE)
+        if is_app_line:
+            is_apparato = True
+            apparato_idx = idx
+            str_idx = is_app_line.start()
+            apparato.append(regesto_dict["regesto"][idx][str_idx:])
+            regesto_dict["regesto"][idx] = regesto_dict["regesto"][idx][:str_idx]
+
+    if apparato_idx is not None:
+        regesto_dict["regesto"] = regesto_dict["regesto"][:apparato_idx + 1]
+        regesto_dict["apparato"] = apparato
+        if regesto_dict["regesto"][-1].strip() == "":
+            regesto_dict["regesto"] = regesto_dict["regesto"][:-1]
+
+    return regesto_dict
+
 if __name__ == "__main__":
     import sys
     zip_file = sys.argv[1]
+
+
     regesta = process_zip_file(zip_file, 1, 2000)
 
+    # find samples with multiple regesta
     multi_reg = {}
     for sample in regesta:
         js = []
@@ -269,23 +327,36 @@ if __name__ == "__main__":
                 js.append(j)
         if len(js) > 1:
             multi_reg[sample[0]] = sample[1]["all"]
+
+    # find samples without regesta
     missing_reg = {i[0]:i[1]["all"] for i in regesta if not any(re.search(r"re[gcqo](est)?\.", j["CONTENT"].lower() if not isinstance(j, str) else j) for j in i[1]["all"])}
 
-    regesta = [(i[0], [j for j in i[1]["all"]], i[2]) for i in regesta if i[0] not in multi_reg.keys() and i[0] not in missing_reg.keys()]
+    # remove broken regesta
+    regesta = [(i[0], i[1]["all"], i[2]) for i in regesta if i[0] not in multi_reg.keys() and i[0] not in missing_reg.keys()]
 
-    regesta = [(i[0], split_in_test_and_regesto(i[1]), i[2]) for i in regesta]
+    # split regesta in regesto (+ apparato) and testo esteso
+    regesta = [(i[0], split_testo_and_regesto(i[1]), i[2]) for i in regesta]
 
-    out_strings = [
+    # make json writable
+    out_dicts = [
         {
             "numero": i,
             "header": "" if idx == 0 else regesta[idx - 1][2],
-            "regesto": [l["CONTENT"] if not isinstance(l, str) else l for l in c[0]],
-            "testo_esteso": [l["CONTENT"] if not isinstance(l, str) else l for l in c[1]],
+            "regesto": [postprocess_line(l["CONTENT"]) if not isinstance(l, str) else l for l in c[0]],
+            "testo_esteso": [postprocess_line(l["CONTENT"]) if not isinstance(l, str) else l for l in c[1]],
             "apparato":None
         }
         for idx, (i, c, h) in enumerate(regesta) if i not in multi_reg and i not in missing_reg]
 
-    with open("test_output.json", 'w') as jf:
-        json.dump(out_strings, jf, indent=4)
-        # for line_out in out_strings:
-        #     jf.write(json.dumps(line_out) + "\n")
+    # split regesto in regesto and apparato
+    out_dicts = [split_regesto_and_apparato(i) for i in out_dicts]
+
+    print(f"FILE: {zip_file}")
+    print(f"N. REGESTA: {len(regesta)}")
+    print(f"N. MULTI REGESTA: {len(multi_reg)}")
+    print(f"N. MISSING REGESTA: {len(multi_reg)}")
+    print(f"N. OUT REGESTA: {len(out_dicts)}")
+
+    file_base_name = "_".join(os.path.basename(zip_file).split("_")[:2])
+    with open(os.path.join("output", "escriptorium_" + file_base_name  + ".json"), 'w') as jf:
+        json.dump(out_dicts, jf, indent=4)
