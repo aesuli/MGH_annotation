@@ -80,15 +80,15 @@ def check_maybe_number(string, page_width):
         content = re.sub(r"—$", "", content).strip()
 
     # check if the line is on the left or right
-    line_type = "left" if hpos < (page_width // 2 - 300) else "right"
+    line_type = "left" if hpos < (page_width // 2 - 150) else "right"
 
     # determine if it could be a regesto header
     is_maybe_number = any([
-        re.search(r"1\d{3}\.[])]*$", content),
+        re.search(r"1\d{3} ?\.[])]*$", content),
         re.search(r"1\d{3} f\.[])]*$", content),
-        re.search(r"1227$", content),
+        # re.search(r"1227$", content),
         re.search(r"^\d{4}", content),
-        # (1900 < int(width) < 2000) # and "12" in content,
+        # any(m in content for m in french_months),
     ])
 
 
@@ -111,8 +111,8 @@ def clean_bottom_lines(_lines):
     remove = -1
     while idx >= 0:
         content = _lines[idx]['CONTENT']
-        width = _lines[idx]['WIDTH']
-        hpos = _lines[idx]['HPOS']
+        # width = _lines[idx]['WIDTH']
+        # hpos = _lines[idx]['HPOS']
 
         if content[:5].count(')') > 0:
             # footnotes likely have a ) at the very beginning
@@ -196,10 +196,10 @@ def process_zip_file(file, first_page, last_page):
                             is_first_right = True
                             lines["left"] = clean_bottom_lines(lines["left"])
 
-                        if not is_maybe_number and width < line_width[line_type] / 2:
+                        if not is_maybe_number and width < line_width[line_type] / 3:
                             # remove if it is too short
                             continue
-                        elif not is_maybe_number and vpos < top_margin and width < line_width[line_type] / 2:
+                        elif not is_maybe_number and vpos < top_margin and width < line_width[line_type] / 3:
                             # remove if it is high and short
                             continue
 
@@ -311,14 +311,17 @@ def split_regesto_and_apparato(regesto_dict):
 
 if __name__ == "__main__":
     import sys
+    n_pages = 2000
     zip_file = sys.argv[1]
+    if len(sys.argv) > 2:
+        n_pages = int(sys.argv[2])
 
 
-    regesta = process_zip_file(zip_file, 1, 2000)
+    processed_zip_file = process_zip_file(zip_file, 1, n_pages)
 
     # find samples with multiple regesta
     multi_reg = {}
-    for sample in regesta:
+    for sample in processed_zip_file:
         js = []
         for j in sample[1]["all"]:
             if isinstance(j, str):
@@ -329,16 +332,18 @@ if __name__ == "__main__":
             multi_reg[sample[0]] = sample[1]["all"]
 
     # find samples without regesta
-    missing_reg = {i[0]:i[1]["all"] for i in regesta if not any(re.search(r"re[gcqo](est)?\.", j["CONTENT"].lower() if not isinstance(j, str) else j) for j in i[1]["all"])}
+    missing_reg = {i[0]:(i[1]["all"], i[2]) for i in processed_zip_file 
+                   if not any(re.search(r"re[gcqo](est)?\.", j["CONTENT"].lower() if not isinstance(j, str) else j) for j in i[1]["all"])}
 
     # remove broken regesta
-    regesta = [(i[0], i[1]["all"], i[2]) for i in regesta if i[0] not in multi_reg.keys() and i[0] not in missing_reg.keys()]
+    regesta = [(i[0], i[1]["all"], i[2]) for i in processed_zip_file 
+               if i[0] not in multi_reg.keys() and i[0] not in missing_reg.keys()]
 
     # split regesta in regesto (+ apparato) and testo esteso
     regesta = [(i[0], split_testo_and_regesto(i[1]), i[2]) for i in regesta]
 
     # make json writable
-    out_dicts = [
+    regesta = [
         {
             "numero": i,
             "header": "" if idx == 0 else regesta[idx - 1][2],
@@ -346,17 +351,17 @@ if __name__ == "__main__":
             "testo_esteso": [postprocess_line(l["CONTENT"]) if not isinstance(l, str) else l for l in c[1]],
             "apparato":None
         }
-        for idx, (i, c, h) in enumerate(regesta) if i not in multi_reg and i not in missing_reg]
+        for idx, (i, c, h) in enumerate(regesta)]
 
     # split regesto in regesto and apparato
-    out_dicts = [split_regesto_and_apparato(i) for i in out_dicts]
+    regesta = [split_regesto_and_apparato(i) for i in regesta]
 
     print(f"FILE: {zip_file}")
-    print(f"N. REGESTA: {len(regesta)}")
+    print(f"N. REGESTA IN: {len(processed_zip_file)}")
     print(f"N. MULTI REGESTA: {len(multi_reg)}")
-    print(f"N. MISSING REGESTA: {len(multi_reg)}")
-    print(f"N. OUT REGESTA: {len(out_dicts)}")
+    print(f"N. MISSING REGESTA: {len(missing_reg)}")
+    print(f"N. REGESTA OUT: {len(regesta)}")
 
     file_base_name = "_".join(os.path.basename(zip_file).split("_")[:2])
     with open(os.path.join("output", "escriptorium_" + file_base_name  + ".json"), 'w') as jf:
-        json.dump(out_dicts, jf, indent=4)
+        json.dump(regesta, jf, indent=4)
