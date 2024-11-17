@@ -84,14 +84,15 @@ def main(args, experiments):
     my_folder = "/home/giovanni"
     models_folder = os.path.join(my_folder, "models/hf_llama/")
     data_path = os.path.join(my_folder, "Repos/MGH_annotation/output/")
+    dataset_name = args.dataset_name
     dfs = []
     for regesta_file in os.listdir(data_path):
-        if "mgh" not in regesta_file:
+        if dataset_name not in regesta_file:
             continue
         df = datasets.load_dataset("json", data_files=os.path.join(data_path, regesta_file))["train"]
         df = df.map(preprocess_samples)
-        volumn = "_".join(regesta_file.split("_")[1:])
-        df = df.add_column("volume", [volumn]*len(df))
+        volume = "_".join(regesta_file.split("_")[1:])
+        df = df.add_column("volume", [volume]*len(df))
         dfs.append(df)
     df = datasets.concatenate_datasets(dfs, axis=0)
     _model_name = args.model_name
@@ -111,7 +112,7 @@ def main(args, experiments):
         prompt_dicts = [prompt_fn(m, messages, regesti, 2) for idx, m in enumerate(messages)]        
 
         if _model_name == "gpt-4o":
-            outfile = f"batch_input_{_model_name}_regesto_{experiment}.jsonl"
+            outfile = f"batch_input_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
             with open(outfile, "w") as jf:
                 for id, prompt_dict in zip(ids, prompt_dicts):
                     request = {
@@ -121,7 +122,7 @@ def main(args, experiments):
                         "body": {
                             "model": "gpt-4o-2",
                             "messages": prompt_dict,
-                            "max_tokens": 512,
+                            "max_tokens": 1024,
                             "temperature": 0.8,
                         },
                         "real_regesto": regesti[id - 1],
@@ -137,7 +138,7 @@ def main(args, experiments):
         prompts = []
         outputs = []
         count = 0
-        outfile = f"generation_output_{_model_name}_regesto_{experiment}.jsonl"
+        outfile = f"generation_output_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
         with open(outfile, "w") as jf:
             for output, testo, regesto, apparato in zip(output_text, messages, regesti, apparati):
                 count += 1

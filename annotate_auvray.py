@@ -275,7 +275,7 @@ def postprocess_line(text):
         .replace("«", "")
         .replace("»", "")
         .replace("...", "")
-        .replace("¬", " ")
+        # .replace("¬", " ")
         .replace("\u2014", " ")
         .strip()
     )
@@ -348,7 +348,7 @@ if __name__ == "__main__":
             "numero": i,
             "header": "" if idx == 0 else regesta[idx - 1][2],
             "regesto": [postprocess_line(l["CONTENT"]) if not isinstance(l, str) else l for l in c[0]],
-            "testo_esteso": [postprocess_line(l["CONTENT"]) if not isinstance(l, str) else l for l in c[1]],
+            "testo esteso": [postprocess_line(l["CONTENT"]) if not isinstance(l, str) else l for l in c[1]],
             "apparato":None
         }
         for idx, (i, c, h) in enumerate(regesta)]

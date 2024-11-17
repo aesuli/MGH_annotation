@@ -132,7 +132,7 @@ def get_random_prompt_xsum_anita(m, informed):
 
 SYSTEM_REGESTO_PROMPT = 'You are an expert in paleography and diplomatics who dedicated his life to the study of Latin language and has a deep expertise in the field of medieval charters. You have dedicated several years of your life in learning how to write the «regesto» of texts in Latin.'
 
-FEW_SHOT_REGESTO_PROMPT = "Here are some examples of latin documents issued by the Pope Honorius III and Gregorius IX (TESTO ESTESO) with their corresponding regesto (REGESTO):"
+FEW_SHOT_REGESTO_PROMPT = "Here are some examples of latin documents issued by the Pope Honorius III and Gregorius IX (TESTO ESTESO) with their corresponding regesto (REGESTO)."
 
 USER_REGESTO_PROMPT = """Given the following text in Latin:
 
@@ -143,8 +143,8 @@ Please write in Latin a «regesto» for it, containing:
 - the date (calculated from the year of pontificate)
 - the place
 
-TESTO ESTESO:
-{testo_esteso}"""
+TESTO ESTESO:{testo_esteso}
+"""
 
 BACKTRANSLATION_USER_REGESTO_PROMPT = """Given the following text in Latin:
 
@@ -155,8 +155,8 @@ Please first translate it to English and then write in Latin a «regesto» for i
 - the date (calculated from the year of pontificate);
 - the place;
 
-TESTO ESTESO:
-{testo_esteso}"""
+TESTO ESTESO:{testo_esteso}
+"""
 
 def get_regesto_prompt_with_example(testo_esteso, testi_esempio, regesti_esempio, n, command_prompt):
     assert len(testi_esempio) == len(regesti_esempio)
@@ -166,9 +166,9 @@ def get_regesto_prompt_with_example(testo_esteso, testi_esempio, regesti_esempio
     testi_esempio = [testi_esempio[i] for i in rand_idxs]
     regesti_esempio = [regesti_esempio[i] for i in rand_idxs]
     return (
-        FEW_SHOT_REGESTO_PROMPT + "\n" +
-        "\n".join([f"TESTO ESTESO ({i}):\n{testi_esempio[i]}\n\nREGESTO ({i}):\n{regesti_esempio[i]}\n"
-         for i in range(n)]) + "\n" +
+        FEW_SHOT_REGESTO_PROMPT + "\n\n" +
+        "\n".join([f"TESTO ESTESO ({i}): {testi_esempio[i]}\n\nREGESTO ({i}): {regesti_esempio[i]}\n\n"
+         for i in range(n)]) +
         command_prompt.format(testo_esteso=testo_esteso))
 
 def get_regesto_prompt(m, testi_estesi, regesti, n):
@@ -179,7 +179,7 @@ def get_regesto_prompt(m, testi_estesi, regesti, n):
     return out
 
 def get_backtranslation_regesto_prompt(m, testi_estesi, regesti, n):
-    out = [{"role":"system", "content":SYSTEM_REGESTO_PROMPT},]
+    out = [{"role": "system", "content": SYSTEM_REGESTO_PROMPT},]
     out.append({"role":"user", "content":get_regesto_prompt_with_example(
         m, testi_estesi, regesti, n, BACKTRANSLATION_USER_REGESTO_PROMPT
     )})

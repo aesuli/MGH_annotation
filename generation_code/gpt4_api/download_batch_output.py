@@ -1,5 +1,6 @@
 import json
 import sys
+import datetime
 from openai import AzureOpenAI
 
 def get_output(client, output_file_id):
@@ -30,6 +31,12 @@ if __name__ == "__main__":
         azure_endpoint="https://itserr07.openai.azure.com/")
     
     formatted_jsons = get_output(client, output_file_id)
+
+    with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/download_logs.jsonl", "a") as f:
+        f.write(
+            json.dumps({"time": f"{datetime.datetime.now()}", "file_id": output_file_id}) + "\n"
+            # f"{datetime.datetime.now()} Downloaded output for {output_file_id}\n"
+        )
 
     with open(f"{output_file_id}.jsonl", "w") as f:
         for l in formatted_jsons:
