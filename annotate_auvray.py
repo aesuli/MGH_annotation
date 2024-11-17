@@ -103,9 +103,6 @@ def check_maybe_number(string, page_width):
 
 def clean_bottom_lines(_lines):
     page_ids = [idx for i in _lines if isinstance(i, str)]
-    page_n = None
-    if len(page_ids) > 0:
-        page_n = _lines.pop(page_ids[0])[5:]
     # when we reach the end of a page we remove any eventual footnote
     idx = len(_lines) - 1
     remove = -1
@@ -118,7 +115,8 @@ def clean_bottom_lines(_lines):
             # footnotes likely have a ) at the very beginning
             remove = idx
 
-        if content.startswith('"') or content.startswith('9') or content.startswith('REG.'):
+        if (content.startswith('"') or content.startswith('9') or 
+            content.startswith('REG.') or content.startswith('1.')):
             # other chars footnotes likely start with
             remove = idx
 
@@ -192,9 +190,11 @@ def process_zip_file(file, first_page, last_page):
                         content = out["content"]
                         line_type = out["line_type"]
                         is_maybe_number = out["is_maybe_number"]
+
                         if not is_first_right and line_type == "right":
                             is_first_right = True
                             lines["left"] = clean_bottom_lines(lines["left"])
+                            lines["all"] = clean_bottom_lines(lines["all"])
 
                         if not is_maybe_number and width < line_width[line_type] / 3:
                             # remove if it is too short
@@ -229,6 +229,7 @@ def process_zip_file(file, first_page, last_page):
                             lines["all"].append(string)
 
                     lines["right"] = clean_bottom_lines(lines["right"])
+                    lines["all"] = clean_bottom_lines(lines["all"])
 
 
             if page_number >= last_page:
@@ -248,24 +249,32 @@ def split_testo_and_regesto(tls):
         n_content = tls[idx + 1]["CONTENT"] if idx < len(tls) - 1 else None
         first_word = tls[0]["CONTENT"].split(" ")[0].lower()
         all_fs = re.findall(r" f\.", c_content)
-        if c_content.startswith("«") or c_content.startswith(".."):
+
+        if c_content.startswith(".."):
             if not c_content.startswith("«.,"): # per un regesto specifico
                 split_idx = idx
                 break
         if len(all_fs) > 1:
             split_idx = idx + 1
             break
-        if len(all_fs) == 1:
-            if n_content is not None and ")" in n_content:
-                split_idx = idx + 2
-            break
-        if n_content is not None and len(all_fs) == 1 and re.search(r"re[gcqo](est)?\.", n_content.lower()):
-            split_idx = idx + 1
-            break
-        if re.search(r"re[gcqo](est)?\.", c_content.lower()):
-            if any(w.lower() == first_word for w in c_content.split(" ")):
-                split_idx = idx + 1
-                break
+
+        if n_content is not None:
+
+            if len(all_fs) == 1:
+                if ")" in n_content:
+                    split_idx = idx + 1
+                    break
+
+                n_all_fs = re.findall(r" f\.", n_content.lower())
+                if len(n_all_fs) >= 1:
+                    split_idx = idx + 2
+                    break
+            
+            if re.search(r"re[gcqo](est)?\.", c_content.lower()):
+                if any(w.lower() == first_word for w in n_content.split(" ")):
+                    split_idx = idx + 1
+                    break
+
     return tls[:split_idx], tls[split_idx:]
 
 def postprocess_line(text):
@@ -279,7 +288,10 @@ def postprocess_line(text):
         .replace("\u2014", " ")
         .strip()
     )
+
+    text = re.sub(r"^[\.\,]+", "", text).strip()
     text = re.sub(r"\s+", " ", text)
+
     return text
 
 def split_regesto_and_apparato(regesto_dict):

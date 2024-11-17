@@ -93,6 +93,7 @@ def main(args, experiments):
         df = df.map(preprocess_samples)
         volume = "_".join(regesta_file.split("_")[1:])
         df = df.add_column("volume", [volume]*len(df))
+        df = df.map(lambda x: {"id": str(x["numero"]) + "_" + x["volume"]})
         dfs.append(df)
     df = datasets.concatenate_datasets(dfs, axis=0)
     _model_name = args.model_name
@@ -101,7 +102,7 @@ def main(args, experiments):
     n_articles = len(df)
     df = df.select(range(n_articles))
     messages = df["testo esteso"]
-    ids = df["numero"]
+    ids = df["id"]
     regesti = df["regesto"]
     apparati = df["apparato"]
     
@@ -114,7 +115,7 @@ def main(args, experiments):
         if _model_name == "gpt-4o":
             outfile = f"batch_input_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
             with open(outfile, "w") as jf:
-                for id, prompt_dict in zip(ids, prompt_dicts):
+                for id, prompt_dict, regesto in zip(ids, prompt_dicts, regesti):
                     request = {
                         "custom_id": f"{id}",
                         "method": "POST",
@@ -125,7 +126,7 @@ def main(args, experiments):
                             "max_tokens": 1024,
                             "temperature": 0.8,
                         },
-                        "real_regesto": regesti[id - 1],
+                        "real_regesto": regesto,
                     }
                     jf.write(json.dumps(request) + "\n")
             continue
