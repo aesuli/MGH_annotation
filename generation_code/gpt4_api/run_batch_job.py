@@ -56,7 +56,7 @@ if __name__ == "__main__":
         batch_response = client.batches.retrieve(batch_id)
         status = batch_response.status
         print(f"{datetime.datetime.now()} Batch Id: {batch_id},  Status: {status}")
-    
+
     if batch_response.status == "failed":
-        for error in batch_response.errors.data:  
+        for error in batch_response.errors.data:
             print(f"Error code {error.code} Message {error.message}")

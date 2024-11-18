@@ -76,7 +76,7 @@ def postprocess_text(text):
 def preprocess_samples(x):
     for col in ["regesto", "testo esteso", "apparato"]:
         if x[col] is not None:
-            x[col] = " ".join([i for i in x[col]]).replace("¬ ", "").replace("¬", "")
+            x[col] = " ".join(x[col]).replace("¬ ", "").replace("¬", "")
     return x
 
 def main(args, experiments):
@@ -96,6 +96,7 @@ def main(args, experiments):
         df = df.map(lambda x: {"id": str(x["numero"]) + "_" + x["volume"]})
         dfs.append(df)
     df = datasets.concatenate_datasets(dfs, axis=0)
+    df.to_json(f"output/joint_{args.dataset_name}.jsonl")
     _model_name = args.model_name
     model_path = os.path.join(models_folder, _model_name)
 
