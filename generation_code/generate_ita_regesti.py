@@ -81,13 +81,13 @@ def preprocess_samples(x):
 
 def main(args, experiments):
 
-    my_folder = "/home/giovanni"
+    my_folder = "/leonardo_scratch/large/userexternal/gpuccett/"
     models_folder = os.path.join(my_folder, "models/hf_llama/")
     data_path = os.path.join(my_folder, "Repos/MGH_annotation/output/")
     dataset_name = args.dataset_name
     dfs = []
     for regesta_file in os.listdir(data_path):
-        if dataset_name not in regesta_file:
+        if dataset_name not in regesta_file or "escriptorium" not in regesta_file:
             continue
         df = datasets.load_dataset("json", data_files=os.path.join(data_path, regesta_file))["train"]
         df = df.map(preprocess_samples)
@@ -136,13 +136,11 @@ def main(args, experiments):
         prompts = prepare_inputs(prompt_dicts, llm)
         output_text = generate(prompts, llm, params)
     
-        sep = "-"*10
         prompts = []
-        outputs = []
         count = 0
         outfile = f"generation_output_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
         with open(outfile, "w") as jf:
-            for output, testo, regesto, apparato in zip(output_text, messages, regesti, apparati):
+            for id, output, testo, regesto, apparato in zip(ids, output_text, messages, regesti, apparati):
                 count += 1
                 prompt = output.prompt
                 generated_text = postprocess_text(output.outputs[0].text)
@@ -153,6 +151,7 @@ def main(args, experiments):
                     "regesto_originale": regesto,
                     "apparato": apparato,
                     "testo_esteso": testo,
+                    "id": id,
                 }
     
                 print(to_dump)
