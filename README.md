@@ -20,7 +20,7 @@ Transcription is exported from eScriptorium using the ALTO format.
 
 ## Output
 
-The output of the script are three json files, one for each volume. 
+The output of the script are three json files, one for each volume.
 Each entry of the json is an annotated regesto, with the four part listed above.
 Line in each entry are still split according to the OCR.
 The script does not use machine learning, because the process is simple enough to be explicitly coded using a few heuristics based on string positions, content, and sizes.

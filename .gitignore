@@ -3,7 +3,7 @@ conda_venv/
 raw_data/
 *.key
 *logs.txt
-
+trash/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
