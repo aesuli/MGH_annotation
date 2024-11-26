@@ -132,7 +132,7 @@ def get_random_prompt_xsum_anita(m, informed):
 
 SYSTEM_REGESTO_PROMPT = 'You are an expert in paleography and diplomatics who dedicated his life to the study of Latin language and has a deep expertise in the field of medieval charters. You have dedicated several years of your life in learning how to write the «regesto» of texts in Latin.'
 
-FEW_SHOT_REGESTO_PROMPT = "Here are some examples of latin documents issued by the Pope Honorius III and Gregorius IX (TESTO ESTESO) with their corresponding regesto (REGESTO)."
+FEW_SHOT_REGESTO_PROMPT = "Here are some examples of latin documents issued by the Pope Honorius III {extra_pope}(TESTO ESTESO) with their corresponding regesto (REGESTO)."
 
 USER_REGESTO_PROMPT = """Given the following text in Latin:
 
@@ -158,27 +158,30 @@ Please first translate it to English and then write in Latin a «regesto» for i
 TESTO ESTESO:{testo_esteso}
 """
 
-def get_regesto_prompt_with_example(testo_esteso, testi_esempio, regesti_esempio, n, command_prompt):
+def get_regesto_prompt_with_example(testo_esteso, testi_esempio, regesti_esempio, dataset_name, n, command_prompt):
     assert len(testi_esempio) == len(regesti_esempio)
     rand_idxs = random.choices(range(len(testi_esempio)), k=n)
     while any([testi_esempio[i] == testo_esteso for i in rand_idxs]):
         rand_idxs = random.choices(range(len(testi_esempio)), k=n)
     testi_esempio = [testi_esempio[i] for i in rand_idxs]
     regesti_esempio = [regesti_esempio[i] for i in rand_idxs]
+    few_shot_regesto_prompt = FEW_SHOT_REGESTO_PROMPT.format(
+        extra_pope="Gregorius IX " if dataset_name == "mgh" else "")
+
     return (
-        FEW_SHOT_REGESTO_PROMPT + "\n\n" +
+        few_shot_regesto_prompt + "\n\n" +
         "\n".join([f"TESTO ESTESO ({i}): {testi_esempio[i]}\n\nREGESTO ({i}): {regesti_esempio[i]}\n\n"
          for i in range(n)]) +
         command_prompt.format(testo_esteso=testo_esteso))
 
-def get_regesto_prompt(m, testi_estesi, regesti, n):
+def get_regesto_prompt(m, testi_estesi, regesti, dataset_name, n):
     out = [{"role":"system", "content":SYSTEM_REGESTO_PROMPT},]
     out.append({"role":"user", "content":get_regesto_prompt_with_example(
         m, testi_estesi, regesti, n, USER_REGESTO_PROMPT
     )})
     return out
 
-def get_backtranslation_regesto_prompt(m, testi_estesi, regesti, n):
+def get_backtranslation_regesto_prompt(m, testi_estesi, regesti, dataset_name, n,):
     out = [{"role": "system", "content": SYSTEM_REGESTO_PROMPT},]
     out.append({"role":"user", "content":get_regesto_prompt_with_example(
         m, testi_estesi, regesti, n, BACKTRANSLATION_USER_REGESTO_PROMPT

@@ -80,7 +80,7 @@ def preprocess_samples(x):
     return x
 
 def main(args, experiments):
-
+                
     my_folder = "/leonardo_scratch/large/userexternal/gpuccett/"
     models_folder = os.path.join(my_folder, "models/hf_llama/")
     data_path = os.path.join(my_folder, "Repos/MGH_annotation/output/")
@@ -106,12 +106,12 @@ def main(args, experiments):
     ids = df["id"]
     regesti = df["regesto"]
     apparati = df["apparato"]
-    
+
     llm, params = get_vllm_llm_and_params(model_path, model_path)
 
     for experiment, prompt_fn in experiments.items():
 
-        prompt_dicts = [prompt_fn(m, messages, regesti, 2) for idx, m in enumerate(messages)]        
+        prompt_dicts = [prompt_fn(m, messages, regesti, dataset_name, 2) for idx, m in enumerate(messages)]        
 
         if _model_name == "gpt-4o":
             outfile = f"batch_input_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
@@ -179,4 +179,3 @@ if __name__ == "__main__":
         from vllm import LLM, SamplingParams
 
     main(args, experiments=experiments)
-    
