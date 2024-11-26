@@ -8,6 +8,12 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+FULL_REGESTA_NUMBERS = {
+    "1a": {"pages": 321, "regesta": 1113}, "1b": {"pages": 320, "regesta":1366},
+    "2a": {"pages": 256, "regesta": 922}, "2b": {"pages": 256, "regesta": 1384},
+    "3a": {"pages": 153, "regesta": 488}, "3b": {"pages": 153, "regesta": 900},
+}
+
 mean_center_page = 0
 mean_line_width = 0
 

@@ -24,12 +24,12 @@ if __name__ == "__main__":
     # Configuration
     with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/itserr_07.key", "r") as f:
         API_KEY = f.read().strip()
-    
+
     client = AzureOpenAI(
         api_key=API_KEY,
         api_version="2024-10-21",
         azure_endpoint="https://itserr07.openai.azure.com/")
-    
+
     formatted_jsons = get_output(client, output_file_id)
 
     with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/download_logs.jsonl", "a") as f:
