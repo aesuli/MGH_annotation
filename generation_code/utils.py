@@ -177,13 +177,13 @@ def get_regesto_prompt_with_example(testo_esteso, testi_esempio, regesti_esempio
 def get_regesto_prompt(m, testi_estesi, regesti, dataset_name, n):
     out = [{"role":"system", "content":SYSTEM_REGESTO_PROMPT},]
     out.append({"role":"user", "content":get_regesto_prompt_with_example(
-        m, testi_estesi, regesti, n, USER_REGESTO_PROMPT
+        m, testi_estesi, regesti, dataset_name, n, USER_REGESTO_PROMPT
     )})
     return out
 
 def get_backtranslation_regesto_prompt(m, testi_estesi, regesti, dataset_name, n,):
     out = [{"role": "system", "content": SYSTEM_REGESTO_PROMPT},]
     out.append({"role":"user", "content":get_regesto_prompt_with_example(
-        m, testi_estesi, regesti, n, BACKTRANSLATION_USER_REGESTO_PROMPT
+        m, testi_estesi, regesti, dataset_name, n, BACKTRANSLATION_USER_REGESTO_PROMPT
     )})
     return out

@@ -81,7 +81,7 @@ def preprocess_samples(x):
 
 def main(args, experiments):
                 
-    my_folder = "/leonardo_scratch/large/userexternal/gpuccett/"
+    my_folder = "/home/giovanni/"
     models_folder = os.path.join(my_folder, "models/hf_llama/")
     data_path = os.path.join(my_folder, "Repos/MGH_annotation/output/")
     dataset_name = args.dataset_name
