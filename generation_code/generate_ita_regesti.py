@@ -80,9 +80,9 @@ def preprocess_samples(x):
     return x
 
 def main(args, experiments):
-                
-    my_folder = "/home/giovanni/"
-    models_folder = os.path.join(my_folder, "models/hf_llama/")
+
+    my_folder = os.path.expanduser("~")
+    models_folder = os.path.join(my_folder, "models/hf_llama/") if not "Qwen" in args.model_name else os.path.join(my_folder, "Repos/MGH_annotation/")
     data_path = os.path.join(my_folder, "Repos/MGH_annotation/output/")
     dataset_name = args.dataset_name
     dfs = []
@@ -114,7 +114,7 @@ def main(args, experiments):
         prompt_dicts = [prompt_fn(m, messages, regesti, dataset_name, 2) for idx, m in enumerate(messages)]        
 
         if _model_name == "gpt-4o":
-            outfile = f"batch_input_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
+            outfile = f"batch_input_regesto_{dataset_name}_{_model_name}_{experiment}_n_shots_{args.n_shots}.jsonl"
             with open(outfile, "w") as jf:
                 for id, prompt_dict, regesto in zip(ids, prompt_dicts, regesti):
                     request = {
@@ -135,10 +135,10 @@ def main(args, experiments):
 
         prompts = prepare_inputs(prompt_dicts, llm)
         output_text = generate(prompts, llm, params)
-    
+
         prompts = []
         count = 0
-        outfile = f"generation_output_regesto_{dataset_name}_{_model_name}_{experiment}.jsonl"
+        outfile = f"generation_output_regesto_{dataset_name}_{_model_name}_{experiment}_n_shots_{args.n_shots}.jsonl"
         with open(outfile, "w") as jf:
             for id, output, testo, regesto, apparato in zip(ids, output_text, messages, regesti, apparati):
                 count += 1
@@ -161,8 +161,10 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--model_name", type=str, required=True,
         choices=["llama-3.1-8b-instruct-hf", "llama-3.1-70b-instruct-hf",
-                 "llama-3.1-405b-instruct-hf", "anita_8b", "gpt-4o"])
+                 "llama-3.1-405b-instruct-hf", "anita_8b", "gpt-4o",
+                 "Qwen_2.5_7B_Regesta_sft_full_model"])
     parser.add_argument("--dataset_name", type=str, required=True)
+    parser.add_argument('--n_shots', type=int)
     return parser.parse_args()
 
 if __name__ == "__main__":
