@@ -9,7 +9,11 @@ from argparse import ArgumentParser
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from utils import get_regesto_prompt, get_backtranslation_regesto_prompt
+from utils import (
+    get_regesto_prompt,
+    get_backtranslation_regesto_prompt,
+    get_finetune_regesto_prompt
+)
 
 
 
@@ -43,7 +47,7 @@ def get_vllm_llm_and_params(model_name: str, tokenizer_name: str):
 
     params = SamplingParams(
         max_tokens=2048,
-        min_tokens=256,
+        # min_tokens=256,
         temperature=0.8,
         top_p=0.9,
         # top_k=args.top_k if not args.use_beam_search else -1,
@@ -57,7 +61,7 @@ def get_vllm_llm_and_params(model_name: str, tokenizer_name: str):
     tensor_parallel_size, pipeline_parallel_size = get_tp_and_pp_size(model_name)
     llm = LLM(
         model=model_name,
-        tokenizer_mode="slow",
+        # tokenizer_mode="slow",
         tensor_parallel_size=tensor_parallel_size,
         # pipeline_parallel_size=pipeline_parallel_size,
         max_model_len=8192,
@@ -98,20 +102,27 @@ def main(args, experiments):
     df = datasets.concatenate_datasets(dfs, axis=0)
     df.to_json(f"output/joint_{args.dataset_name}.jsonl")
     _model_name = args.model_name
-    model_path = os.path.join(models_folder, _model_name)
+    model_path = _model_name
 
     n_articles = len(df)
     df = df.select(range(n_articles))
+    df = df.filter(lambda x: x["testo esteso"] is not None and x["regesto"] is not None)
     messages = df["testo esteso"]
     ids = df["id"]
     regesti = df["regesto"]
     apparati = df["apparato"]
 
     llm, params = get_vllm_llm_and_params(model_path, model_path)
+    tokenizer = llm.get_tokenizer()
 
     for experiment, prompt_fn in experiments.items():
 
-        prompt_dicts = [prompt_fn(m, messages, regesti, dataset_name, 2) for idx, m in enumerate(messages)]        
+        prompt_dicts = [prompt_fn(m, messages, regesti, dataset_name, args.n_shots) for idx, m in enumerate(messages)]
+        prompt_dicts = [
+            [{h:k if h == "role" else "" for h, k in m.items()} for m in prompt_dict]
+            if len(tokenizer.apply_chat_template(prompt_dict)) > 8192
+            else prompt_dict for prompt_dict in prompt_dicts
+        ]
 
         if _model_name == "gpt-4o":
             outfile = f"batch_input_regesto_{dataset_name}_{_model_name}_{experiment}_n_shots_{args.n_shots}.jsonl"
@@ -138,13 +149,15 @@ def main(args, experiments):
 
         prompts = []
         count = 0
-        outfile = f"generation_output_regesto_{dataset_name}_{_model_name}_{experiment}_n_shots_{args.n_shots}.jsonl"
+
+        model_name_for_path = _model_name.split("/")[-1] if "/" in _model_name else _model_name
+        outfile = f"generation_output_regesto_{dataset_name}_{model_name_for_path}_{experiment}_n_shots_{args.n_shots}.jsonl"
         with open(outfile, "w") as jf:
             for id, output, testo, regesto, apparato in zip(ids, output_text, messages, regesti, apparati):
                 count += 1
                 prompt = output.prompt
                 generated_text = postprocess_text(output.outputs[0].text)
-    
+
                 to_dump = {
                     "prompt": prompt,
                     "regesto_sintetico": generated_text,
@@ -160,21 +173,27 @@ def main(args, experiments):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--model_name", type=str, required=True,
-        choices=["llama-3.1-8b-instruct-hf", "llama-3.1-70b-instruct-hf",
-                 "llama-3.1-405b-instruct-hf", "anita_8b", "gpt-4o",
-                 "Qwen_2.5_7B_Regesta_sft_full_model"])
+        # choices=["llama-3.1-8b-instruct-hf", "llama-3.1-70b-instruct-hf",
+        #          "llama-3.1-405b-instruct-hf", "anita_8b", "gpt-4o",
+        #          "Qwen_2.5_7B_Regesta_sft_full_model",
+        #          "Qwen2.5_7B_Regesta_SFT_bs4_full_model",]
+    )
     parser.add_argument("--dataset_name", type=str, required=True)
-    parser.add_argument('--n_shots', type=int)
+    parser.add_argument('--n_shots', type=int, required=True)
     return parser.parse_args()
 
 if __name__ == "__main__":
 
     import os
 
+    args = parse_args()
+
     experiments = {
         "format": get_regesto_prompt,
         "backtranslate": get_backtranslation_regesto_prompt,}
-    args = parse_args()
+    if "qwen" in args.model_name.lower():
+        experiments = {
+            "format": get_finetune_regesto_prompt,}
 
     if args.model_name != "gpt-4o":
         from transformers import AutoTokenizer

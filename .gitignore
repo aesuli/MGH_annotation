@@ -4,6 +4,10 @@ raw_data/
 *.key
 *logs.txt
 trash/
+wandb
+tst-summarization
+trl/
+transformers/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

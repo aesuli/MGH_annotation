@@ -1,3 +1,4 @@
+import re
 import random
 from itertools import product
 
@@ -176,9 +177,11 @@ def get_regesto_prompt_with_example(testo_esteso, testi_esempio, regesti_esempio
 
 def get_regesto_prompt(m, testi_estesi, regesti, dataset_name, n):
     out = [{"role":"system", "content":SYSTEM_REGESTO_PROMPT},]
-    out.append({"role":"user", "content":get_regesto_prompt_with_example(
-        m, testi_estesi, regesti, dataset_name, n, USER_REGESTO_PROMPT
-    )})
+    out.append({
+            "role": "user", "content": get_regesto_prompt_with_example(
+                m, testi_estesi, regesti, dataset_name, n, USER_REGESTO_PROMPT)
+        })
+
     return out
 
 def get_backtranslation_regesto_prompt(m, testi_estesi, regesti, dataset_name, n,):
@@ -186,4 +189,47 @@ def get_backtranslation_regesto_prompt(m, testi_estesi, regesti, dataset_name, n
     out.append({"role":"user", "content":get_regesto_prompt_with_example(
         m, testi_estesi, regesti, dataset_name, n, BACKTRANSLATION_USER_REGESTO_PROMPT
     )})
+    return out
+
+def get_finetune_regesto_prompt(m, testi_estesi, regesti, dataset_name, n):
+    assert len(testi_estesi) == len(regesti)
+    rand_idxs = random.choices(range(len(testi_estesi)), k=n)
+    while any([testi_estesi[i] == m for i in rand_idxs]):
+        rand_idxs = random.choices(range(len(testi_estesi)), k=n)
+    testi_estesi = [testi_estesi[i] for i in rand_idxs]
+    regesti = [regesti[i] for i in rand_idxs]
+    out = []
+    for  testo_esteso, regesto in zip(testi_estesi, regesti):
+        out.append({"role": "user", "content": testo_esteso})
+        out.append({"role": "assistant", "content": regesto})
+    out.append({"role":"user", "content":m})
+    return out
+
+def postprocess_line(text):
+
+    # remove weird characters
+    text = (
+        text
+        .replace("«", "")
+        .replace("»", "")
+        .replace("...", " ")
+        # .replace("¬", " ")
+        .replace("\u2014", " ")
+        .strip()
+    )
+
+    text = re.sub(r"^[\.\,]+", "", text).strip()
+    text = re.sub(r"\s+", " ", text)
+
+    return text
+
+def join_lines(texts):
+    out = ""
+    for i in texts:
+        out += postprocess_line(i)
+        if not out.endswith('¬'):
+            out += " "
+        else:
+            out = out[:-1]
+    out = re.sub(r"\s+", " ", out)
     return out

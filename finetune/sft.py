@@ -50,11 +50,17 @@ python trl/scripts/sft.py \
 """
 
 import argparse
-
+import os
+import sys
 
 from datasets import load_dataset, concatenate_datasets
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.models.auto.modeling_auto import MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES
+
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "generation_code"))
+
+from utils import get_regesto_prompt, join_lines
 
 from trl import (
     ModelConfig,
@@ -115,23 +121,30 @@ def main(script_args, training_args, model_args):
     raw_datasets = raw_datasets.filter(
         lambda x: x["testo esteso"] is not None and x["regesto"] is not None
     )
+    raw_full_texts = raw_datasets["testo esteso"]
+    raw_regesti = raw_datasets["regesto"]
+
     raw_datasets = raw_datasets.map(
         # lambda x: {
         #     "prompt": "Full Text:\n\n" + " ".join(x["testo esteso"]),
         #     "completion": "\n\nRegesto:\n\n" + " ".join(x["regesto"])
         # })
         lambda x: {
-            "messages": [
-                # {"role": "system", "content": "You are helpful"},
-                {"role": "user", "content":  " ".join(x["testo esteso"])},
-                {"role": "assistant", "content": " ".join(x["regesto"])}
-            ]
+            "messages": get_regesto_prompt(
+                join_lines(x["testo esteso"]),
+                raw_regesti,
+                raw_full_texts,
+                dataset_name="mgh",
+                n=0,) + [{"role": "assistant", "content": join_lines(x["regesto"])}]
         })
-
     raw_datasets = raw_datasets.train_test_split(
         test_size=0.1, seed=training_args.seed)
     raw_datasets["validation"] = raw_datasets["test"]
     del raw_datasets["test"]
+    for i in range(3):
+        for h, k in raw_datasets["train"][i].items():
+
+            print(h, k)
 
 
     ################

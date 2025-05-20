@@ -42,7 +42,7 @@ def save_to_latex(df, path):
             "bleu",
         ],
     ].set_index(["model", "dataset", "experiment"])
-    
+
     _df.style.format(precision=2).to_latex(
         path,
         multirow_align="c",
@@ -83,11 +83,11 @@ def split_at_regetso_gpt4(x):
         return x
     return splat[0]
 
-def get_gpt4_data(dataset_name, model_name, experiment):
+def get_gpt4_data(dataset_name, model_name, experiment, n_shots):
     preds_ds = datasets.load_dataset(
         "json",
         data_files=f"generation_output/joint_{
-            dataset_name}_{model_name}_{experiment}.jsonl",
+            dataset_name}_{model_name}_{experiment}_n_shots_{n_shots}.jsonl",
     )["train"]
     preds_ds = preds_ds.map(
         lambda x: {
@@ -108,11 +108,12 @@ def split_at_regetso_llama(x):
             return " ".join(x.split()[idx + 1:]).strip()
     return x
 
-def get_llama_data(dataset_name, model_name, experiment):
+def get_llama_data(dataset_name, model_name, experiment, n_shots):
+    model_name = model_name.split("/")[-1]
     preds_ds = datasets.load_dataset(
         "json",
         data_files=f"generation_output/joint_{
-            dataset_name}_{model_name}_{experiment}.jsonl",
+            dataset_name}_{model_name}_{experiment}_n_shots_{n_shots}.jsonl",
     )["train"]
 
     preds_ds = preds_ds.map(
@@ -120,6 +121,17 @@ def get_llama_data(dataset_name, model_name, experiment):
 
     return preds_ds
 
+def get_qwen_data(dataset_name, model_name, experiment, n_shots):
+    preds_ds = datasets.load_dataset(
+        "json",
+        data_files=f"generation_output_regesto_{
+            dataset_name}_{model_name}_{experiment}_n_shots_{n_shots}.jsonl",
+    )["train"]
+
+    preds_ds = preds_ds.map(
+        lambda x: {"pred": split_at_regetso_llama(x["regesto_sintetico"])})
+
+    return preds_ds
 
 def eval_llm(args, model_name):
     experiments = args.experiments
@@ -132,11 +144,17 @@ def eval_llm(args, model_name):
         for experiment in experiments:
             try:
                 if "gpt-4" in model_name:
-                    preds_ds = get_gpt4_data(dataset_name, model_name, experiment)
-                elif "llama-3.1" in model_name:
-                    preds_ds = get_llama_data(dataset_name, model_name, experiment)
-            except FileNotFoundError:
+                    preds_ds = get_gpt4_data(dataset_name, model_name, experiment, args.n_shots)
+                elif "llama" in model_name.lower():
+                    preds_ds = get_llama_data(dataset_name, model_name, experiment, args.n_shots)
+                elif "qwen" in model_name.lower():
+                    preds_ds = get_qwen_data(
+                        dataset_name, model_name, experiment, args.n_shots)
+                else:
+                    raise ValueError(f"Unknown model: {model_name}")
+            except FileNotFoundError as e:
                 print(f"Skipping: {model_name}, {dataset_name}, {experiment}")
+                print(e)
                 continue
 
             metrics = get_metrics(
@@ -188,7 +206,12 @@ def parse_args():
     )
 
     parser.add_argument("--model_names", type=str, nargs="+",
-                        choices=["gpt-4o", "llama-3.1-70b-instruct-hf", "llama-3.1-405b-instruct-hf"])
+                        # choices=[
+                        #     "gpt-4o", "llama-3.1-70b-instruct-hf", "llama-3.1-405b-instruct-hf",
+                        #     "Qwen_2.5_7B_Regesta_sft_full_model",
+                        #     "Qwen2.5_7B_Regesta_SFT_bs4_full_model"
+                        #     ]
+    )
 
     parser.add_argument(
         "--experiments",
@@ -197,6 +220,8 @@ def parse_args():
         nargs="+",
         choices=["backtranslate", "format"],
     )
+
+    parser.add_argument("--n_shots", type=int)
 
     parser.add_argument("--count_per_instance", action="store_true")
 
@@ -211,7 +236,8 @@ if __name__ == "__main__":
     for model_name in args.model_names:
         all_dfs.append(eval_llm(args, model_name,))
 
-    df = pd.concat(all_dfs, axis=0)  # .to_csv("evaluation_results.csv")
+    df = pd.concat(all_dfs, axis=0)
+    df.to_csv("evaluation_results.csv")
     if args.save_table:
         save_to_latex(
             df, "/home/giovanni/Latex/regesti_ircdl/tables/2_shots_eval.tex")
