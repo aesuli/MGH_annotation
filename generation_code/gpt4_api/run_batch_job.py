@@ -3,12 +3,14 @@ import time
 import datetime
 import sys
 import json
+from pathlib import Path
 from openai import AzureOpenAI
 
 if __name__ == "__main__":
 
     # Configuration
-    with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/itserr_07.key", "r") as f:
+    key_path = Path(__file__).parent / "itserr_07.key"
+    with open(key_path, "r") as f:
         API_KEY = f.read().strip()
 
     client = AzureOpenAI(
@@ -16,11 +18,13 @@ if __name__ == "__main__":
         api_version="2024-10-21",
         azure_endpoint="https://itserr07.openai.azure.com/")
 
-    with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/upload_logs.jsonl", "r") as f:
+    upload_batch_logs = Path(__file__).parent / "upload_logs.jsonl"
+    upload_batch_logs.touch(exist_ok=True)
+    with open(upload_batch_logs, "r") as f:
         current_upload_logs = [json.loads(l) for l in f.readlines()]
 
-    current_batch_logs_path = "/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/batch_logs.jsonl"
-    if os.path.exists(current_batch_logs_path):
+    current_batch_logs_path = Path(__file__).parent / "batch_logs.jsonl"
+    if current_batch_logs_path.exists():
         with open(current_batch_logs_path, "r") as f:
             current_batch_logs = [json.loads(l) for l in f.readlines()]
     else:
@@ -40,15 +44,10 @@ if __name__ == "__main__":
         completion_window="24h",
     )
 
+    print(batch_response.model_dump_json(indent=2))
     # Save batch ID for later use
     batch_id = batch_response.id
-    with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/batch_logs.jsonl", "a") as f:
-        f.write(
-            json.dumps({"time": f"{datetime.datetime.now()}", "batch_id":batch_id, "file_id":file_id}) + "\n"
-            # f"{datetime.datetime.now()} Batch Id: {batch_id}\n"
-        )
-
-    print(batch_response.model_dump_json(indent=2))
+    current_batch_logs_path.touch(exist_ok=True)
 
     status = "validating"
     while status not in ("completed", "failed", "canceled"):
@@ -56,6 +55,14 @@ if __name__ == "__main__":
         batch_response = client.batches.retrieve(batch_id)
         status = batch_response.status
         print(f"{datetime.datetime.now()} Batch Id: {batch_id},  Status: {status}")
+
+    output_line = {"time": f"{datetime.datetime.now()}", "batch_id":batch_id, "file_id":file_id}
+    output_line["status"] = status
+    if status == "completed":
+        output_line["output_file_id"] = batch_response.output_file_id
+
+    with open(current_batch_logs_path, "a") as f:
+        f.write(json.dumps(output_line) + "\n")
 
     if batch_response.status == "failed":
         for error in batch_response.errors.data:

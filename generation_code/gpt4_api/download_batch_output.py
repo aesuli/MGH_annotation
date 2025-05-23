@@ -1,6 +1,7 @@
 import json
 import sys
 import datetime
+from pathlib import Path
 from openai import AzureOpenAI
 
 def get_output(client, output_file_id):
@@ -22,7 +23,8 @@ if __name__ == "__main__":
     output_file_id = sys.argv[1]
 
     # Configuration
-    with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/itserr_07.key", "r") as f:
+    key_path = Path(__file__).parent / "itserr_07.key"
+    with open(key_path, "r") as f:
         API_KEY = f.read().strip()
 
     client = AzureOpenAI(
@@ -32,7 +34,9 @@ if __name__ == "__main__":
 
     formatted_jsons = get_output(client, output_file_id)
 
-    with open("/home/giovanni/Repos/MGH_annotation/generation_code/gpt4_api/download_logs.jsonl", "a") as f:
+    download_logs_path = Path(__file__).parent / "download_logs.jsonl"
+    download_logs_path.touch(exist_ok=True)
+    with open(download_logs_path, "a") as f:
         f.write(
             json.dumps({"time": f"{datetime.datetime.now()}", "file_id": output_file_id}) + "\n"
             # f"{datetime.datetime.now()} Downloaded output for {output_file_id}\n"
