@@ -120,10 +120,6 @@ def process_zip_file(file, first_page, last_page):
             if f == 'METS.xml':
                 continue
             else:
-                page_number = int(f.split("Page")[1].split(".")[0])
-                # print(f"PAGE N. {page_number}")
-                if page_number in SKIPPED_PAGES:
-                    continue
 
                 with zip_ref.open(f) as fp:
                     bs = BeautifulSoup(fp.read().decode(
@@ -153,9 +149,10 @@ if __name__ == "__main__":
     count = 0
     file_count = 0
     f = open(out_dir / f"file_{file_count}.txt", "w")
+
     for id, line in enumerate(processed_zip_file):
         f.write(line + "\n")
-        if (id + 1) % 300 == 0:
+        if (id + 1) % 200 == 0:
             f.close()
             file_count += 1
             f = open(out_dir / f"file_{file_count}.txt", "w")

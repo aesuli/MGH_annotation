@@ -1,0 +1,2 @@
+model_name_or_path: "/home/gpucce/Repos/MGH_annotation/llama_3.1_8b_instruct_Regesta_SFT_bs32_full_model"
+device: "1"

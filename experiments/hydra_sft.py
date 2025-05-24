@@ -1,4 +1,3 @@
-#pylint: disable=import-error
 # Copyright 2025 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,12 +69,30 @@ from trl import (
     get_quantization_config,
 )
 
+from omegaconf import DictConfig, OmegaConf
+import hydra
+
 sys.path.insert(
-    0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "generation_code"))
+    0, "/home/gpucce/Repos/MGH_annotation/generation_code"
+    # os.path.join(os.path.dirname(os.path.dirname(__file__)), "generation_code")
+)
 
 from utils import get_regesto_prompt, join_lines
 
-def main(script_args, training_args, model_args):
+def main(cfg):
+
+    def make_parser(subparsers: argparse._SubParsersAction = None):
+        dataclass_types = (ScriptArguments, SFTConfig, ModelConfig)
+        if subparsers is not None:
+            parser = subparsers.add_parser("sft", help="Run the SFT training script", dataclass_types=dataclass_types)
+        else:
+            parser = TrlParser(dataclass_types)
+        return parser
+
+    parser = make_parser()
+    script_args, training_args, model_args = parser.parse_args_and_config()
+
+
     ################
     # Model init kwargs & Tokenizer
     ################
@@ -168,16 +185,7 @@ def main(script_args, training_args, model_args):
         trainer.push_to_hub(dataset_name=script_args.dataset_name)
 
 
-def make_parser(subparsers: argparse._SubParsersAction = None):
-    dataclass_types = (ScriptArguments, SFTConfig, ModelConfig)
-    if subparsers is not None:
-        parser = subparsers.add_parser("sft", help="Run the SFT training script", dataclass_types=dataclass_types)
-    else:
-        parser = TrlParser(dataclass_types)
-    return parser
 
 
 if __name__ == "__main__":
-    parser = make_parser()
-    script_args, training_args, model_args = parser.parse_args_and_config()
-    main(script_args, training_args, model_args)
+    main(cfg)

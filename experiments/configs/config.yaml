@@ -1,0 +1,9 @@
+defaults:
+  - dataset: "mgh"
+  - model: "llama_3.1_8b_regesta_sft_bs32_5_epochs"
+
+hydra:
+  sweeper:
+    params:
+      dataset: mgh,auvray
+      model: glob(*)
